@@ -1,0 +1,104 @@
+name: Build and Push workbuddy2api-docker
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Force rebuild even when upstream commit is unchanged
+        required: false
+        type: boolean
+        default: false
+
+  schedule:
+    - cron: "17 6 * * *"
+
+concurrency:
+  group: workbuddy2api-docker-build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  UPSTREAM_REPO: https://github.com/linguo2625469/workbuddy2api-panel.git
+  IMAGE: ${{ secrets.DOCKER_USERNAME }}/workbuddy2api-docker
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Read last upstream commit
+        id: state
+        run: |
+          if [ -f .upstream-commit ]; then
+            echo "commit=$(cat .upstream-commit)" >> "$GITHUB_OUTPUT"
+          else
+            echo "commit=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get latest upstream commit
+        id: upstream
+        run: |
+          set -euo pipefail
+          commit="$(git ls-remote "$UPSTREAM_REPO" refs/heads/main | cut -f1)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "Upstream commit: $commit"
+
+      - name: Decide whether to build
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.state.outputs.commit }}" = "${{ steps.upstream.outputs.commit }}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip build
+        if: steps.decide.outputs.changed == 'false'
+        run: echo "Upstream commit unchanged, skip build."
+
+      - name: Clone upstream source
+        if: steps.decide.outputs.changed == 'true'
+        run: |
+          git clone --depth 1 "$UPSTREAM_REPO" source
+
+      - name: Set up Docker Buildx
+        if: steps.decide.outputs.changed == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: steps.decide.outputs.changed == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        if: steps.decide.outputs.changed == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./source
+          file: ./source/Dockerfile
+          push: true
+          pull: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ steps.upstream.outputs.commit }}
+
+      - name: Persist upstream commit
+        if: steps.decide.outputs.changed == 'true' && success()
+        run: |
+          echo "${{ steps.upstream.outputs.commit }}" > .upstream-commit
+
+      - name: Commit upstream commit
+        if: steps.decide.outputs.changed == 'true' && success()
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: sync upstream commit"
+          file_pattern: .upstream-commit
