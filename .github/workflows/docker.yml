@@ -20,7 +20,7 @@ permissions:
   contents: write
 
 env:
-  UPSTREAM_REPO: https://github.com/linguo2625469/workbuddy2api-panel.git
+  UPSTREAM_REPO: https://github.com/ShouZhuo0413/codebuddy2api.git
   IMAGE: ${{ secrets.DOCKER_USERNAME }}/workbuddy2api-docker
 
 jobs:
