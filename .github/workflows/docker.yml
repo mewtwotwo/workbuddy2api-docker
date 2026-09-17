@@ -91,6 +91,32 @@ jobs:
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ steps.upstream.outputs.commit }}
 
+      - name: Notify WeCom
+        if: steps.decide.outputs.changed == 'true' && success()
+        continue-on-error: true
+        env:
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WECOM_WEBHOOK_URL:-}" ]; then
+            echo "WECOM_WEBHOOK_URL is not configured; skipping notification."
+            exit 0
+          fi
+
+          content="WorkBuddy2API image pushed successfully
+          Commit: ${{ steps.upstream.outputs.commit }}
+          Image: ${{ env.IMAGE }}:latest
+          Build: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          payload="$(jq -cn \
+            --arg content "$content" \
+            '{msgtype:"text",text:{content:$content}}')"
+
+          curl -fsS --retry 3 \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$WECOM_WEBHOOK_URL"
+
       - name: Persist upstream commit
         if: steps.decide.outputs.changed == 'true' && success()
         run: |
