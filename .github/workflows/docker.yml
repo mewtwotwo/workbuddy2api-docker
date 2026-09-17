@@ -103,10 +103,10 @@ jobs:
             exit 0
           fi
 
-          content="WorkBuddy2API image pushed successfully
-          Commit: ${{ steps.upstream.outputs.commit }}
-          Image: ${{ env.IMAGE }}:latest
-          Build: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          content="✅ WorkBuddy2API 镜像推送成功
+          上游提交: ${{ steps.upstream.outputs.commit }}
+          镜像: ${{ env.IMAGE }}:latest
+          构建记录: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           payload="$(jq -cn \
             --arg content "$content" \
