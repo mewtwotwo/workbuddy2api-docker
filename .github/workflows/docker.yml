@@ -10,7 +10,8 @@ on:
         default: false
 
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "17 9 * * *"
+      timezone: "Asia/Shanghai"
 
 concurrency:
   group: workbuddy2api-docker-build
